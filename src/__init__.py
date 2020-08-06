@@ -1,7 +1,7 @@
 """
 wa-automate-python module
 
-.. moduleauthor:: Mukul Hase <mukulhase@gmail.com>, Adarsh Sanjeev <adarshsanjeev@gmail.com>
+.. moduleauthor:: Mukul Hase <mukulhase@gmail.com>, Adarsh Sanjeev <adarshsanjeev@gmail.com>, Nikita  Marchenko
 """
 
 import binascii
@@ -28,6 +28,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.keys import Keys
 
 from .helper import convert_to_base64
 from .objects.chat import UserChat, factory_chat
@@ -36,7 +37,7 @@ from .objects.message import MessageGroup, factory_message
 from .objects.number_status import NumberStatus
 from .wapi_js_wrapper import WapiJsWrapper
 
-__version__ = '1.3.1'
+__version__ = '1.3.4'
 
 
 class WhatsAPIDriverStatus(object):
@@ -76,6 +77,14 @@ class WhatsAPIDriver(object):
         'qrCodePlain': "div[data-ref]",
         'QRReloader': 'div[data-ref] > span > div',
         'mainPage': ".two",
+        'menu': '//*[@id="side"]/header/div[2]/div/span/div[3]/div',
+        'logout': '.I4jbF > .eP_pD > div',
+        'messageList': '._2hqOq',
+        'messageSendText': '//*[@id="main"]/footer/div[1]/div[2]/div/div[2]',
+        'messageText': '._3Whw5 > span',
+        'clip': 'span[data-icon="clip"]',
+        'sendMedia': 'span[data-icon="send"]',
+        'MediaText': 'div._2FVVk._3WjMU._1C-hz'
     }
 
     logger = logging.getLogger(__name__)
@@ -89,9 +98,20 @@ class WhatsAPIDriver(object):
         return self.driver.execute_script('return window.localStorage;')
 
     def set_local_storage(self, data):
-        self.driver.execute_script(''.join(
-            ["window.localStorage.setItem('{}', '{}');".format(k, v.replace("\n", "\\n") if isinstance(v, str) else v)
-             for k, v in data.items()]))
+        self.driver.execute_script(
+            "".join(
+                [
+                    "window.localStorage.setItem('{}', '{}');".format(
+                        k, v.replace("\n", "\\n") if isinstance(v, str) else v
+                    )
+                    for k, v in data.items()
+                ]
+            )
+        )
+    def save_chrome_profile(self):
+        self.logger.info("Saving profile chrome to %s" % (self._profile_path))
+        with open(os.path.join(self._profile_path, self._LOCAL_STORAGE_FILE), 'w') as f:
+            f.write(dumps(self.get_local_storage()))
 
     def save_firefox_profile(self, remove_old=False):
         """Function to save the firefox profile to the permanant one"""
@@ -138,7 +158,6 @@ class WhatsAPIDriver(object):
                  profile=None, headless=False, autoconnect=True, logger=None, extra_params=None, chrome_options=None,
                  executable_path=None, script_timeout=60, element_timeout=30, license_key=None):
         """Initialises the webdriver"""
-
         self.logger = logger or self.logger
         self.license_key = license_key
         extra_params = extra_params or {}
@@ -151,7 +170,6 @@ class WhatsAPIDriver(object):
                 raise WhatsAPIException("Could not find profile at %s" % profile)
         else:
             self._profile_path = None
-
         self.client = client.lower()
         if self.client == "firefox":
             if self._profile_path is not None:
@@ -166,6 +184,8 @@ class WhatsAPIDriver(object):
                 # Disable Flash
                 self._profile.set_preference('dom.ipc.plugins.enabled.libflashplayer.so',
                                              'false')
+            # Defaults to no proxy
+            self._profile.set_preference("network.proxy.type", 0)
             if proxy is not None:
                 self.set_proxy(proxy)
 
@@ -194,8 +214,6 @@ class WhatsAPIDriver(object):
 
         elif self.client == "chrome":
             self._profile = webdriver.ChromeOptions()
-            if self._profile_path is not None:
-                self._profile.add_argument("--user-data-dir=%s" % self._profile_path)
             if proxy is not None:
                 self._profile.add_argument('--proxy-server=%s' % proxy)
             if headless:
@@ -219,17 +237,10 @@ class WhatsAPIDriver(object):
                 self._profile = webdriver.FirefoxProfile(self._profile_path)
             else:
                 self._profile = webdriver.FirefoxProfile()
-
-            options = Options()
-
-            if headless:
-                options.headless = True
-            
             capabilities = DesiredCapabilities.FIREFOX.copy()
             self.driver = webdriver.Remote(
                 command_executor=command_executor,
                 desired_capabilities=capabilities,
-                options=options,
                 **extra_params
             )
 
@@ -272,19 +283,26 @@ class WhatsAPIDriver(object):
 
         profilePath = ""
         if self.client == "chrome":
-            profilePath = ""
+            if self._profile_path is None:
+                profilePath = ""
+            else:
+                profilePath = self._profile_path
         else:
-            profilePath = self._profile.path
-
+            if self._profile_path is None:
+                profilePath = _profile.path
+            else:
+                profilePath = self._profile_path
         local_storage_file = os.path.join(profilePath, self._LOCAL_STORAGE_FILE)
         if os.path.exists(local_storage_file):
             with open(local_storage_file) as f:
                 self.set_local_storage(loads(f.read()))
 
-            self.driver.refresh()
+        self.driver.refresh()
 
     def quit(self):
-        self.wapi_functions.quit()
+
+        self.driver.find_element_by_xpath(self._SELECTORS['menu']).click()
+        self.driver.find_elements_by_css_selector(self._SELECTORS['logout'])[-1].click()
         self.driver.quit()
 
     ###########################################
@@ -535,7 +553,8 @@ class WhatsAPIDriver(object):
         :return:
         """
         number_status = self.wapi_functions.checkNumberStatus(number_id)
-        return NumberStatus(number_status, self)
+        Status = str(NumberStatus(number_status, self)).split()
+        return Status[-1][:-1]
 
     def contact_block(self, id):
         return self.wapi_functions.contactBlock(id)
@@ -662,16 +681,22 @@ class WhatsAPIDriver(object):
         return result
 
     def chat_send_message(self, chat_id, message):
-        result = self.wapi_functions.sendMessage(chat_id, message)
+        self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text&source&data&app_absent')
+        text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+            (By.XPATH, self._SELECTORS['messageSendText'])))
+        text.click()
+        text.send_keys(message, Keys.RETURN)
+        message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
+        text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
+        if text == message:
+            return True, message_element.get_attribute("data-id")
+        else:
+            return False
 
-        return isinstance(result, str)
+    def reply_message(self, chat_id, message_id, message):
+        result = self.wapi_functions.reply(chat_id, message, message_id)
 
-    def reply_message(self, message_id, message):
-        result = self.wapi_functions.ReplyMessage(message_id, message)
-
-        if not isinstance(result, bool):
-            return factory_message(result, self)
-        return result
+        return bool(result)
 
     def forward_messages(self, chat_id_to, message_ids, skip_my_messages=False):
         return self.wapi_functions.forwardMessages(chat_id_to, message_ids, skip_my_messages)
@@ -692,7 +717,7 @@ class WhatsAPIDriver(object):
         imgBase64 = convert_to_base64(webp_img, is_thumbnail=True)
         return self.wapi_functions.sendImageAsSticker(imgBase64, chatid, {})
 
-    def send_media(self, path, chatid, caption):
+    def send_media(self, path, chat_id, caption=None):
         """
         Converts the file to base64 and sends it using the sendImage function of wapi.js
         :param path: file path
@@ -700,9 +725,30 @@ class WhatsAPIDriver(object):
         :param caption:
         :return:
         """
-        imgBase64 = convert_to_base64(path)
-        filename = os.path.split(path)[-1]
-        return self.wapi_functions.sendImage(imgBase64, chatid, filename, caption)
+        try:
+            self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text&source&data&app_absent')
+            clip = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                (By.CSS_SELECTOR, self._SELECTORS['clip'])))
+            message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
+            clip.click();
+            self.driver.find_element_by_css_selector("input[type='file']").send_keys(path);
+            if caption is None:
+                WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, self._SELECTORS['sendMedia']))).click();
+            else:
+                text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, self._SELECTORS['MediaText'])))
+                text.send_keys(caption, Keys.RETURN)
+            while True:
+                message_el = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
+                if message_element != message_el:
+                    message_element = message_el
+                    break
+                else:
+                    continue
+            return True, message_element.get_attribute("data-id")
+        except Exception as e:
+            return False, e
 
     def send_video_as_gif(self, path, chatid, caption):
         """
