@@ -1,7 +1,7 @@
 """
 wa-automate-python module
 
-.. moduleauthor:: Mukul Hase <mukulhase@gmail.com>, Adarsh Sanjeev <adarshsanjeev@gmail.com>, Nikita  Marchenko
+.. moduleauthor:: Mukul Hase <mukulhase@gmail.com>, Adarsh Sanjeev <adarshsanjeev@gmail.com>
 """
 
 import binascii
@@ -23,12 +23,14 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.select import Select
 
 from .helper import convert_to_base64
 from .objects.chat import UserChat, factory_chat
@@ -77,14 +79,13 @@ class WhatsAPIDriver(object):
         'qrCodePlain': "div[data-ref]",
         'QRReloader': 'div[data-ref] > span > div',
         'mainPage': ".two",
-        'menu': '//*[@id="side"]/header/div[2]/div/span/div[3]/div',
-        'logout': '.I4jbF > .eP_pD > div',
         'messageList': '._2hqOq',
         'messageSendText': '//*[@id="main"]/footer/div[1]/div[2]/div/div[2]',
         'messageText': '._3Whw5 > span',
-        'clip': 'span[data-icon="clip"]',
+        'clip': 'span[data-icon="clip"]' ,
         'sendMedia': 'span[data-icon="send"]',
-        'MediaText': 'div._2FVVk._3WjMU._1C-hz'
+        'MediaText': 'div._2FVVk._3WjMU._1C-hz',
+        'searchBtn': '._3e4VU'
     }
 
     logger = logging.getLogger(__name__)
@@ -98,20 +99,9 @@ class WhatsAPIDriver(object):
         return self.driver.execute_script('return window.localStorage;')
 
     def set_local_storage(self, data):
-        self.driver.execute_script(
-            "".join(
-                [
-                    "window.localStorage.setItem('{}', '{}');".format(
-                        k, v.replace("\n", "\\n") if isinstance(v, str) else v
-                    )
-                    for k, v in data.items()
-                ]
-            )
-        )
-    def save_chrome_profile(self):
-        self.logger.info("Saving profile chrome to %s" % (self._profile_path))
-        with open(os.path.join(self._profile_path, self._LOCAL_STORAGE_FILE), 'w') as f:
-            f.write(dumps(self.get_local_storage()))
+        self.driver.execute_script(''.join(
+            ["window.localStorage.setItem('{}', '{}');".format(k, v.replace("\n", "\\n") if isinstance(v, str) else v)
+             for k, v in data.items()]))
 
     def save_firefox_profile(self, remove_old=False):
         """Function to save the firefox profile to the permanant one"""
@@ -158,6 +148,7 @@ class WhatsAPIDriver(object):
                  profile=None, headless=False, autoconnect=True, logger=None, extra_params=None, chrome_options=None,
                  executable_path=None, script_timeout=60, element_timeout=30, license_key=None):
         """Initialises the webdriver"""
+
         self.logger = logger or self.logger
         self.license_key = license_key
         extra_params = extra_params or {}
@@ -170,6 +161,7 @@ class WhatsAPIDriver(object):
                 raise WhatsAPIException("Could not find profile at %s" % profile)
         else:
             self._profile_path = None
+
         self.client = client.lower()
         if self.client == "firefox":
             if self._profile_path is not None:
@@ -214,6 +206,8 @@ class WhatsAPIDriver(object):
 
         elif self.client == "chrome":
             self._profile = webdriver.ChromeOptions()
+            if self._profile_path is not None:
+                self._profile.add_argument("--user-data-dir=%s" % self._profile_path)
             if proxy is not None:
                 self._profile.add_argument('--proxy-server=%s' % proxy)
             if headless:
@@ -283,26 +277,19 @@ class WhatsAPIDriver(object):
 
         profilePath = ""
         if self.client == "chrome":
-            if self._profile_path is None:
-                profilePath = ""
-            else:
-                profilePath = self._profile_path
+            profilePath = ""
         else:
-            if self._profile_path is None:
-                profilePath = _profile.path
-            else:
-                profilePath = self._profile_path
+            profilePath = self._profile.path
+
         local_storage_file = os.path.join(profilePath, self._LOCAL_STORAGE_FILE)
         if os.path.exists(local_storage_file):
             with open(local_storage_file) as f:
                 self.set_local_storage(loads(f.read()))
 
-        self.driver.refresh()
+            self.driver.refresh()
 
     def quit(self):
-
-        self.driver.find_element_by_xpath(self._SELECTORS['menu']).click()
-        self.driver.find_elements_by_css_selector(self._SELECTORS['logout'])[-1].click()
+        self.wapi_functions.quit()
         self.driver.quit()
 
     ###########################################
@@ -553,8 +540,7 @@ class WhatsAPIDriver(object):
         :return:
         """
         number_status = self.wapi_functions.checkNumberStatus(number_id)
-        Status = str(NumberStatus(number_status, self)).split()
-        return Status[-1][:-1]
+        return NumberStatus(number_status, self)
 
     def contact_block(self, id):
         return self.wapi_functions.contactBlock(id)
@@ -680,18 +666,23 @@ class WhatsAPIDriver(object):
 
         return result
 
-    def chat_send_message(self, chat_id, message):
-        self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text&source&data&app_absent')
-        text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
-            (By.XPATH, self._SELECTORS['messageSendText'])))
-        text.click()
-        text.send_keys(message, Keys.RETURN)
-        message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
-        text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
-        if text == message:
-            return True, message_element.get_attribute("data-id")
+    def chat_send_message(self, chat_id, message, no_contact=False):
+        if no_contact:
+            self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}')
+            text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                (By.XPATH, self._SELECTORS['messageSendText'])))
+            text.click()
+            text.send_keys(message, Keys.RETURN)
+            message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
+            text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
+            if text == message:
+                result = message_element.get_attribute("data-id")
+            else:
+                result = False
         else:
-            return False
+            result = self.wapi_functions.sendMessage(chat_id, message)
+
+        return result
 
     def reply_message(self, chat_id, message_id, message):
         result = self.wapi_functions.reply(chat_id, message, message_id)
@@ -717,7 +708,7 @@ class WhatsAPIDriver(object):
         imgBase64 = convert_to_base64(webp_img, is_thumbnail=True)
         return self.wapi_functions.sendImageAsSticker(imgBase64, chatid, {})
 
-    def send_media(self, path, chat_id, caption=None):
+    def send_media(self, chatid, caption, path=None, base=None, no_contact=False):
         """
         Converts the file to base64 and sends it using the sendImage function of wapi.js
         :param path: file path
@@ -725,30 +716,38 @@ class WhatsAPIDriver(object):
         :param caption:
         :return:
         """
-        try:
-            self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text&source&data&app_absent')
-            clip = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
-                (By.CSS_SELECTOR, self._SELECTORS['clip'])))
-            message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
-            clip.click();
-            self.driver.find_element_by_css_selector("input[type='file']").send_keys(path);
-            if caption is None:
-                WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
-                    (By.CSS_SELECTOR, self._SELECTORS['sendMedia']))).click();
-            else:
-                text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
-                    (By.CSS_SELECTOR, self._SELECTORS['MediaText'])))
-                text.send_keys(caption, Keys.RETURN)
-            while True:
-                message_el = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
-                if message_element != message_el:
-                    message_element = message_el
-                    break
+        if no_contact:
+            try:
+                self.driver.get(f'https://web.whatsapp.com/send?phone={chatid}')
+                clip = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, self._SELECTORS['clip'])))
+                clip.click()
+                file = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, "input[type='file']")))
+                file.send_keys(path)
+                if caption is None:
+                    WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                        (By.CSS_SELECTOR, self._SELECTORS['sendMedia']))).click();
                 else:
-                    continue
-            return True, message_element.get_attribute("data-id")
-        except Exception as e:
-            return False, e
+                    text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                        (By.CSS_SELECTOR, self._SELECTORS['MediaText'])))
+                    text.send_keys(caption, Keys.RETURN)
+                return True
+            except Exception as e:
+                print(e)
+                return False
+        else:
+            if path is not None and base is None:
+                imgBase64 = convert_to_base64(path)
+                filename = os.path.split(path)[-1]
+            else:
+                imgBase64 = base
+                filename = path
+            try:
+                result = self.wapi_functions.sendImage(imgBase64, chatid, filename, caption)
+            except Exception:
+                result = False
+        return result
 
     def send_video_as_gif(self, path, chatid, caption):
         """
