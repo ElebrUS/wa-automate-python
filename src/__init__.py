@@ -669,7 +669,7 @@ class WhatsAPIDriver(object):
     def chat_send_message(self, chat_id, message, no_contact=False):
         if no_contact:
             self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}')
-            text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+            text = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
                 (By.XPATH, self._SELECTORS['messageSendText'])))
             text.click()
             text.send_keys(message, Keys.RETURN)
