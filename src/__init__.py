@@ -671,7 +671,8 @@ class WhatsAPIDriver(object):
             self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text={message}')
             send_message = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, self._SELECTORS['messageSendText'])))
-            send_message.click()
+            self.driver.execute_script("arguments[0].scrollIntoView();", send_message)
+            self.driver.execute_script("arguments[0].click();", send_message)
             message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
             text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
             if text == message:
@@ -906,5 +907,3 @@ class WhatsAPIDriver(object):
 
     def unsubscribe_live_location_updates(self, observer, chat_id):
         self.wapi_functions.new_messages_observable.unsubscribe_live_location_updates(observer, chat_id)
-
-   
