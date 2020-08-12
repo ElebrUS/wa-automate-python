@@ -692,7 +692,7 @@ class WhatsAPIDriver(object):
                     no_phone = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
                         (By.CSS_SELECTOR, self._SELECTORS['NoPhone']))).text
                     if no_phone == 'Неверный номер телефона.':
-                        return 'NoPhone'
+                        result = 'NoPhone'
                 except Exception:
                     result = None
 
