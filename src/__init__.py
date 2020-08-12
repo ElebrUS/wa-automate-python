@@ -670,7 +670,7 @@ class WhatsAPIDriver(object):
         if no_contact:
             self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}')
             send_message = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
-                (By.XPATH, self._SELECTORS['messageSendText'])))
+                (By.CSS_SELECTOR, self._SELECTORS['messageSendText'])))
             send_message.click()
             message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
             text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
