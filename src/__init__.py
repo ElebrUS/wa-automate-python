@@ -85,7 +85,7 @@ class WhatsAPIDriver(object):
         'clip': 'span[data-icon="clip"]' ,
         'sendMedia': 'span[data-icon="send"]',
         'MediaText': 'div._2FVVk._3WjMU._1C-hz',
-        'NoPhone': 'div[data-animate-modal-body="true"] > ._9a59P'
+        'NoPhone': '._9a59P'
     }
 
     logger = logging.getLogger(__name__)
