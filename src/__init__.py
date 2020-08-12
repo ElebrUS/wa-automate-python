@@ -687,7 +687,7 @@ class WhatsAPIDriver(object):
                     if no_phone == 'Неверный номер телефона.':
                         return 'NoPhone'
                 except Exception:
-                    pass
+                    result = None
 
         else:
             result = self.wapi_functions.sendMessage(chat_id, message)
