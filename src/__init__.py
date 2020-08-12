@@ -85,7 +85,7 @@ class WhatsAPIDriver(object):
         'clip': 'span[data-icon="clip"]' ,
         'sendMedia': 'span[data-icon="send"]',
         'MediaText': 'div._2FVVk._3WjMU._1C-hz',
-        'searchBtn': '._3e4VU'
+        'NoPhone': 'div[data-animate-modal-body="true"] > ._9a59P'
     }
 
     logger = logging.getLogger(__name__)
@@ -669,16 +669,23 @@ class WhatsAPIDriver(object):
     def chat_send_message(self, chat_id, message, no_contact=False):
         if no_contact:
             self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text={message}')
-            send_message = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, self._SELECTORS['messageSendText'])))
-            self.driver.execute_script("arguments[0].scrollIntoView();", send_message)
-            self.driver.execute_script("arguments[0].click();", send_message)
-            message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
-            text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
-            if text == message:
-                result = message_element.get_attribute("data-id")
-            else:
-                result = False
+            try:
+                send_message = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR, self._SELECTORS['messageSendText'])))
+                self.driver.execute_script("arguments[0].scrollIntoView();", send_message)
+                self.driver.execute_script("arguments[0].click();", send_message)
+                message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
+                text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
+                if text == message:
+                    result = message_element.get_attribute("data-id")
+                else:
+                    result = False
+            except Exception:
+                no_phone = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, self._SELECTORS['NoPhone']))).text
+                if no_phone == 'Неверный номер телефона.':
+                    return 'NoPhone'
+
         else:
             result = self.wapi_functions.sendMessage(chat_id, message)
 
