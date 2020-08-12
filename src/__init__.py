@@ -681,10 +681,13 @@ class WhatsAPIDriver(object):
                 else:
                     result = False
             except Exception:
-                no_phone = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
-                    (By.CSS_SELECTOR, self._SELECTORS['NoPhone']))).text
-                if no_phone == 'Неверный номер телефона.':
-                    return 'NoPhone'
+                try:
+                    no_phone = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                        (By.CSS_SELECTOR, self._SELECTORS['NoPhone']))).text
+                    if no_phone == 'Неверный номер телефона.':
+                        return 'NoPhone'
+                except Exception:
+                    pass
 
         else:
             result = self.wapi_functions.sendMessage(chat_id, message)
