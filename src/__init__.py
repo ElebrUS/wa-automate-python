@@ -668,13 +668,11 @@ class WhatsAPIDriver(object):
 
     def chat_send_message(self, chat_id, message, no_contact=False):
         if no_contact:
-            self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}')
-            text = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
-                (By.XPATH, self._SELECTORS['messageSendText'])))
-            text.click()
-            text.send_keys(message, Keys.RETURN)
-            message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
-            text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
+            self.driver.get(f'https://web.whatsapp.com/send?phone={chat_id}&text={message}')
+            text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_any_elements_located(
+                (By.XPATH, self._SELECTORS['messageList'])))[-1]
+            text = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
+                (By.CSS_SELECTOR, self._SELECTORS['messageText']))).text
             if text == message:
                 result = message_element.get_attribute("data-id")
             else:
