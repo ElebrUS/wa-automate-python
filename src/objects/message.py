@@ -56,7 +56,7 @@ class Message(WhatsappObject):
         self.type = js_obj["type"]
         self.ack = js_obj["ack"]
         self.sender = Contact(js_obj["sender"], driver) if js_obj["sender"] else False
-        self.timestamp = datetime.fromtimestamp(js_obj["timestamp"])
+        self.timestamp = js_obj["timestamp"]
         self.chat_id = js_obj['chatId']
 
         if js_obj["content"]:
@@ -67,15 +67,17 @@ class Message(WhatsappObject):
             self.safe_content = '...'
 
     def __repr__(self):
-        return "<Message - {type} from {sender} at {timestamp}: {content}>".format(
-            type=self.type,
-            sender=safe_str(self.sender.get_safe_name()),
-            timestamp=self.timestamp,
-            content=self.safe_content)
+
+        data = {'type': self.type,
+            'sender': safe_str(self.sender.get_safe_name()),
+            'timestamp': self.timestamp,
+            'content': self.content}
+        return str(data)
+
 
     @driver_needed
     def reply_message(self, message):
-        return self.driver.reply_message(self.id, message)
+        return self.driver.reply_message(self.chat_id, self.id, message)
 
 
 
