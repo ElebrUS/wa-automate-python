@@ -681,12 +681,11 @@ class WhatsAPIDriver(object):
                         (By.CSS_SELECTOR, self._SELECTORS['messageSendText'])))
                     self.driver.execute_script("arguments[0].scrollIntoView();", send_message)
                     self.driver.execute_script("arguments[0].click();", send_message)
-                    message_element = self.driver.find_elements_by_css_selector(self._SELECTORS['messageList'])[-1]
-                    text = message_element.find_element_by_css_selector(self._SELECTORS['messageText']).text
-                    if text == message:
-                        result = message_element.get_attribute("data-id")
-                    else:
-                        result = False
+                    message_element = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_all_elements_located(
+                        (By.CSS_SELECTOR, self._SELECTORS['messageList'])))[-1]
+                    text = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
+                        (By.CSS_SELECTOR, self._SELECTORS['messageText']))).text
+                    result = message_element.get_attribute("data-id")
             except Exception:
                 try:
                     no_phone = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
@@ -694,7 +693,7 @@ class WhatsAPIDriver(object):
                     if no_phone == 'Неверный номер телефона.':
                         result = 'NoPhone'
                 except Exception:
-                    result = None
+                    result = 'False'
 
         else:
             result = self.wapi_functions.sendMessage(chat_id, message)
