@@ -678,11 +678,6 @@ class WhatsAPIDriver(object):
                     self.driver.execute_script("arguments[0].scrollIntoView();", use_this)
                     self.driver.execute_script("arguments[0].click();", use_this)
                 except Exception:
-                    check_phone = WebDriverWait(self.driver, self.element_timeout).until(EC.visibility_of_element_located(
-                        (By.CSS_SELECTOR, self._SELECTORS['phone']))).text
-                    check_phone = str(check_phone).replace('+', '').replace(' ', '').replace('-', '') + '@c.us'
-                    if check_phone != chat_id:
-                        return 'true'
                     send_message = WebDriverWait(self.driver, self.element_timeout).until(EC.element_to_be_clickable(
                         (By.CSS_SELECTOR, self._SELECTORS['messageSendText'])))
                     self.driver.execute_script("arguments[0].scrollIntoView();", send_message)
